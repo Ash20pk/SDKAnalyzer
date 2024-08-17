@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+astroid
+requests
+beautifulsoup4
+torch
+transformers
+networkx
+sentence-transformers
+pymongo
+pytest
+pytest-mock
+fastapi-cors
+esprima
