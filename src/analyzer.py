@@ -250,7 +250,6 @@ class SDKAnalyzer:
                 })
 
     def _extract_docstring(self, node):
-        # This is a simple implementation. You might want to enhance this
         # to handle more complex JSDoc patterns.
         if node.leadingComments:
             return node.leadingComments[0].value
