@@ -11,6 +11,7 @@ from sentence_transformers import SentenceTransformer
 from pymongo import MongoClient
 import logging
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification, AutoModelForCausalLM
+import torch
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -44,17 +45,27 @@ class SDKAnalyzer:
         self.summarizer = None
         self.text_generator = None
 
+        # Set up device
+        self.device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+
     def _load_models(self):
         try:
             # Use DistilBERT instead of CodeBERT (smaller and faster)
             self.tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
-            self.model = AutoModelForSequenceClassification.from_pretrained("distilbert-base-uncased")
+            self.model = AutoModelForSequenceClassification.from_pretrained("distilbert-base-uncased").to(self.device)
             
             # Use smaller summarization and text generation models
-            self.summarizer = pipeline("summarization", model="facebook/bart-large-cnn", max_length=60, min_length=30)
-            self.text_generator = pipeline("text-generation", model="distilgpt2", max_length=50)
+            summarizer_model = AutoModelForCausalLM.from_pretrained("distilgpt2").to(self.device)
+            summarizer_tokenizer = AutoTokenizer.from_pretrained("distilgpt2")
+            summarizer_tokenizer.pad_token = summarizer_tokenizer.eos_token
+            self.summarizer = pipeline("summarization", model=summarizer_model, tokenizer=summarizer_tokenizer, device=self.device)
             
-            logger.info("AI models loaded successfully")
+            text_gen_model = AutoModelForCausalLM.from_pretrained("distilgpt2").to(self.device)
+            text_gen_tokenizer = AutoTokenizer.from_pretrained("distilgpt2")
+            text_gen_tokenizer.pad_token = text_gen_tokenizer.eos_token
+            self.text_generator = pipeline("text-generation", model=text_gen_model, tokenizer=text_gen_tokenizer, device=self.device)
+            
+            logger.info(f"AI models loaded successfully on device: {self.device}")
         except Exception as e:
             logger.error(f"Error loading AI models: {str(e)}")
             raise
@@ -346,7 +357,8 @@ def semantic_search(query: str, package_name: str, version: str = 'latest'):
     embeddings = result['embeddings']
 
     # Generate query embedding
-    sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
+    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+    sentence_model = SentenceTransformer('all-MiniLM-L6-v2').to(device)
     query_embedding = sentence_model.encode(query)
 
     # Compute similarities
